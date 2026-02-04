@@ -139,21 +139,11 @@ jobs:
       - name: Build
         run: npm run build --if-present
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: nodejs-build-artifacts
-          path: |
-            node_modules/
-            dist/
-            package-lock.json
-          retention-days: 1
-
   # ============================================================================
   # NODE.JS: UNIT TESTS (parallel)
   # ============================================================================
   nodejs-unit-tests:
-    needs: [detect-and-version, nodejs-build]
+    needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'nodejs'
     runs-on: ubuntu-latest
     steps:
@@ -165,12 +155,7 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: nodejs-build-artifacts
-
-      - name: Restore dependencies
+      - name: Install dependencies
         run: npm install
 
       - name: Run unit tests
@@ -186,7 +171,7 @@ jobs:
   # NODE.JS: INTEGRATION TESTS (parallel)
   # ============================================================================
   nodejs-integration-tests:
-    needs: [detect-and-version, nodejs-build]
+    needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'nodejs'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -199,12 +184,7 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: nodejs-build-artifacts
-
-      - name: Restore dependencies
+      - name: Install dependencies
         run: npm install
 
       - name: Run integration tests
@@ -220,7 +200,7 @@ jobs:
   # NODE.JS: SECURITY AUDIT (parallel)
   # ============================================================================
   nodejs-security-audit:
-    needs: [detect-and-version, nodejs-build]
+    needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'nodejs'
     runs-on: ubuntu-latest
     steps:
@@ -232,12 +212,7 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: nodejs-build-artifacts
-
-      - name: Restore dependencies
+      - name: Install dependencies
         run: npm install
 
       - name: Run security audit
