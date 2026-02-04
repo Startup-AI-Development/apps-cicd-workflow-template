@@ -156,6 +156,7 @@ jobs:
           context: .
           push: ${{ inputs.push-image }}
           tags: ${{ needs.detect-and-version.outputs.image-name }}:${{ needs.detect-and-version.outputs.image-tag }}
+          pull: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -216,6 +217,7 @@ jobs:
           context: .
           push: ${{ inputs.push-image }}
           tags: ${{ needs.detect-and-version.outputs.image-name }}:${{ needs.detect-and-version.outputs.image-tag }}
+          pull: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -279,6 +281,7 @@ jobs:
           context: .
           push: ${{ inputs.push-image }}
           tags: ${{ needs.detect-and-version.outputs.image-name }}:${{ needs.detect-and-version.outputs.image-tag }}
+          pull: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -325,6 +328,7 @@ jobs:
           context: .
           push: ${{ inputs.push-image }}
           tags: ${{ needs.detect-and-version.outputs.image-name }}:${{ needs.detect-and-version.outputs.image-tag }}
+          pull: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
