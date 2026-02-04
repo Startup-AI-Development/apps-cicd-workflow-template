@@ -96,35 +96,39 @@ jobs:
   nodejs:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'nodejs'
-    uses: ./.github/workflows/nodejs-ci.yaml
+    uses: Startup-AI-Development/apps-cicd-workflow-template/.github/workflows/nodejs-ci.yaml@main
     with:
       image-name: ${{ needs.detect-and-version.outputs.image-name }}
       image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
       push-image: ${{ inputs.push-image }}
+    secrets: inherit
 
   golang:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'golang'
-    uses: ./.github/workflows/golang-ci.yaml
+    uses: Startup-AI-Development/apps-cicd-workflow-template/.github/workflows/golang-ci.yaml@main
     with:
       image-name: ${{ needs.detect-and-version.outputs.image-name }}
       image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
       push-image: ${{ inputs.push-image }}
+    secrets: inherit
 
   python:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'python'
-    uses: ./.github/workflows/python-ci.yaml
+    uses: Startup-AI-Development/apps-cicd-workflow-template/.github/workflows/python-ci.yaml@main
     with:
       image-name: ${{ needs.detect-and-version.outputs.image-name }}
       image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
       push-image: ${{ inputs.push-image }}
+    secrets: inherit
 
   generic:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'generic'
-    uses: ./.github/workflows/generic-ci.yaml
+    uses: Startup-AI-Development/apps-cicd-workflow-template/.github/workflows/generic-ci.yaml@main
     with:
       image-name: ${{ needs.detect-and-version.outputs.image-name }}
       image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
       push-image: ${{ inputs.push-image }}
+    secrets: inherit
