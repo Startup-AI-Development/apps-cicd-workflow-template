@@ -157,6 +157,7 @@ jobs:
           push: ${{ inputs.push-image }}
           tags: ${{ needs.detect-and-version.outputs.image-name }}:${{ needs.detect-and-version.outputs.image-tag }}
           pull: true
+          no-cache: true
 
       - name: Create git tag for RC/release
         if: inputs.push-image && (github.ref_name == 'staging' || github.ref_name == 'main')
