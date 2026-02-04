@@ -2,6 +2,10 @@
 # Entry point for all application CI - detects language and builds inline
 # Handles versioning: develop=SNAPSHOT, staging=RC, main=release
 # Note: Flattened to avoid nested reusable workflow limitations
+#
+# Node.js Flow:
+#   ALL BRANCHES: build → [unit-tests | integration-tests | security-audit] (parallel)
+#   develop/staging/main ONLY: → docker-build → update-k8s
 
 name: Universal CI
 
@@ -111,7 +115,9 @@ jobs:
           echo "commit-sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
           echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
 
-  # Node.js Build
+  # ============================================================================
+  # NODE.JS: BUILD
+  # ============================================================================
   nodejs-build:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'nodejs'
@@ -126,13 +132,122 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
       - name: Build
         run: npm run build --if-present
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nodejs-build-artifacts
+          path: |
+            node_modules/
+            dist/
+            package-lock.json
+          retention-days: 1
+
+  # ============================================================================
+  # NODE.JS: UNIT TESTS (parallel)
+  # ============================================================================
+  nodejs-unit-tests:
+    needs: [detect-and-version, nodejs-build]
+    if: needs.detect-and-version.outputs.language == 'nodejs'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nodejs-build-artifacts
+
+      - name: Run unit tests
+        run: |
+          if find tests/unit -name "*.test.ts" -o -name "*.test.js" -o -name "*.spec.ts" -o -name "*.spec.js" 2>/dev/null | grep -q .; then
+            echo "✓ Unit tests found, running npm test"
+            npm test
+          else
+            echo "⚠ No unit tests found in tests/unit/, skipping"
+          fi
+
+  # ============================================================================
+  # NODE.JS: INTEGRATION TESTS (parallel)
+  # ============================================================================
+  nodejs-integration-tests:
+    needs: [detect-and-version, nodejs-build]
+    if: needs.detect-and-version.outputs.language == 'nodejs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nodejs-build-artifacts
+
+      - name: Run integration tests
+        run: |
+          if find tests/integration -name "*.integration.test.ts" -o -name "*.integration.test.js" -o -name "*.integration.spec.ts" -o -name "*.integration.spec.js" 2>/dev/null | grep -q .; then
+            echo "✓ Integration tests found, running npm run test:integration"
+            npm run test:integration
+          else
+            echo "⚠ No integration tests found in tests/integration/, skipping"
+          fi
+
+  # ============================================================================
+  # NODE.JS: SECURITY AUDIT (parallel)
+  # ============================================================================
+  nodejs-security-audit:
+    needs: [detect-and-version, nodejs-build]
+    if: needs.detect-and-version.outputs.language == 'nodejs'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nodejs-build-artifacts
+
+      - name: Run security audit
+        run: npm audit --audit-level=high
+
+  # ============================================================================
+  # NODE.JS: DOCKER BUILD (only on develop/staging/main, after tests pass)
+  # ============================================================================
+  nodejs-docker:
+    needs: [detect-and-version, nodejs-unit-tests, nodejs-integration-tests, nodejs-security-audit]
+    if: |
+      needs.detect-and-version.outputs.language == 'nodejs' &&
+      contains(fromJSON('["develop", "staging", "main"]'), github.ref_name)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Validate Dockerfile exists
         run: |
@@ -352,12 +467,12 @@ jobs:
 
   # Update k8s manifests (runs after any build completes)
   update-k8s:
-    needs: [detect-and-version, nodejs-build, golang-build, python-build, generic-build]
+    needs: [detect-and-version, nodejs-docker, golang-build, python-build, generic-build]
     if: |
       always() &&
       inputs.push-image &&
       github.event_name == 'push' &&
-      (needs.nodejs-build.result == 'success' ||
+      (needs.nodejs-docker.result == 'success' ||
        needs.golang-build.result == 'success' ||
        needs.python-build.result == 'success' ||
        needs.generic-build.result == 'success')
