@@ -170,6 +170,9 @@ jobs:
         with:
           name: nodejs-build-artifacts
 
+      - name: Restore dependencies
+        run: npm install
+
       - name: Run unit tests
         run: |
           if find tests/unit -name "*.test.ts" -o -name "*.test.js" -o -name "*.spec.ts" -o -name "*.spec.js" 2>/dev/null | grep -q .; then
@@ -201,6 +204,9 @@ jobs:
         with:
           name: nodejs-build-artifacts
 
+      - name: Restore dependencies
+        run: npm install
+
       - name: Run integration tests
         run: |
           if find tests/integration -name "*.integration.test.ts" -o -name "*.integration.test.js" -o -name "*.integration.spec.ts" -o -name "*.integration.spec.js" 2>/dev/null | grep -q .; then
@@ -230,6 +236,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: nodejs-build-artifacts
+
+      - name: Restore dependencies
+        run: npm install
 
       - name: Run security audit
         run: npm audit --audit-level=high
