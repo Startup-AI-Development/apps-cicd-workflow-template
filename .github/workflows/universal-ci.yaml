@@ -1,6 +1,7 @@
-# Universal CI Workflow
-# Entry point for all application CI - detects language and dispatches to appropriate workflow
+# Universal CI Workflow (Flattened)
+# Entry point for all application CI - detects language and builds inline
 # Handles versioning: develop=SNAPSHOT, staging=RC, main=release
+# Note: Flattened to avoid nested reusable workflow limitations
 
 name: Universal CI
 
@@ -12,6 +13,21 @@ on:
         required: false
         type: boolean
         default: true
+      node-version:
+        description: 'Node.js version (for Node.js projects)'
+        required: false
+        type: string
+        default: '20'
+      go-version:
+        description: 'Go version (for Go projects)'
+        required: false
+        type: string
+        default: '1.22'
+      python-version:
+        description: 'Python version (for Python projects)'
+        required: false
+        type: string
+        default: '3.12'
 
 permissions:
   contents: write
@@ -93,42 +109,284 @@ jobs:
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
 
-  nodejs:
+  # Node.js Build
+  nodejs-build:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'nodejs'
-    uses: Startup-AI-Development/apps-cicd-workflow-template/.github/workflows/nodejs-ci.yaml@main
-    with:
-      image-name: ${{ needs.detect-and-version.outputs.image-name }}
-      image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
-      push-image: ${{ inputs.push-image }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  golang:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build --if-present
+
+      - name: Validate Dockerfile exists
+        run: |
+          if [ ! -f "Dockerfile" ]; then
+            echo "Error: Dockerfile not found in repository root"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: inputs.push-image
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ inputs.push-image }}
+          tags: ${{ needs.detect-and-version.outputs.image-name }}:${{ needs.detect-and-version.outputs.image-tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create git tag for RC/release
+        if: inputs.push-image && (github.ref_name == 'staging' || github.ref_name == 'main')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ needs.detect-and-version.outputs.image-tag }}"
+          git push origin "${{ needs.detect-and-version.outputs.image-tag }}"
+
+  # Go Build
+  golang-build:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'golang'
-    uses: Startup-AI-Development/apps-cicd-workflow-template/.github/workflows/golang-ci.yaml@main
-    with:
-      image-name: ${{ needs.detect-and-version.outputs.image-name }}
-      image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
-      push-image: ${{ inputs.push-image }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  python:
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build
+        run: go build -o app .
+
+      - name: Validate Dockerfile exists
+        run: |
+          if [ ! -f "Dockerfile" ]; then
+            echo "Error: Dockerfile not found in repository root"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: inputs.push-image
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ inputs.push-image }}
+          tags: ${{ needs.detect-and-version.outputs.image-name }}:${{ needs.detect-and-version.outputs.image-tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create git tag for RC/release
+        if: inputs.push-image && (github.ref_name == 'staging' || github.ref_name == 'main')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ needs.detect-and-version.outputs.image-tag }}"
+          git push origin "${{ needs.detect-and-version.outputs.image-tag }}"
+
+  # Python Build
+  python-build:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'python'
-    uses: Startup-AI-Development/apps-cicd-workflow-template/.github/workflows/python-ci.yaml@main
-    with:
-      image-name: ${{ needs.detect-and-version.outputs.image-name }}
-      image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
-      push-image: ${{ inputs.push-image }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  generic:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            pip3 install -e ".[dev]"
+          else
+            pip3 install -r requirements.txt
+            pip3 install pytest
+          fi
+
+      - name: Run tests
+        run: pytest
+
+      - name: Validate Dockerfile exists
+        run: |
+          if [ ! -f "Dockerfile" ]; then
+            echo "Error: Dockerfile not found in repository root"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: inputs.push-image
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ inputs.push-image }}
+          tags: ${{ needs.detect-and-version.outputs.image-name }}:${{ needs.detect-and-version.outputs.image-tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create git tag for RC/release
+        if: inputs.push-image && (github.ref_name == 'staging' || github.ref_name == 'main')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ needs.detect-and-version.outputs.image-tag }}"
+          git push origin "${{ needs.detect-and-version.outputs.image-tag }}"
+
+  # Generic Build (Dockerfile only)
+  generic-build:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'generic'
-    uses: Startup-AI-Development/apps-cicd-workflow-template/.github/workflows/generic-ci.yaml@main
-    with:
-      image-name: ${{ needs.detect-and-version.outputs.image-name }}
-      image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
-      push-image: ${{ inputs.push-image }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Dockerfile exists
+        run: |
+          if [ ! -f "Dockerfile" ]; then
+            echo "Error: Dockerfile not found in repository root"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: inputs.push-image
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ inputs.push-image }}
+          tags: ${{ needs.detect-and-version.outputs.image-name }}:${{ needs.detect-and-version.outputs.image-tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create git tag for RC/release
+        if: inputs.push-image && (github.ref_name == 'staging' || github.ref_name == 'main')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ needs.detect-and-version.outputs.image-tag }}"
+          git push origin "${{ needs.detect-and-version.outputs.image-tag }}"
+
+  # Update k8s manifests (runs after any build completes)
+  update-k8s:
+    needs: [detect-and-version, nodejs-build, golang-build, python-build, generic-build]
+    if: |
+      always() &&
+      inputs.push-image &&
+      github.event_name == 'push' &&
+      (needs.nodejs-build.result == 'success' ||
+       needs.golang-build.result == 'success' ||
+       needs.python-build.result == 'success' ||
+       needs.generic-build.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Check if k8s/global.yaml exists
+        id: check-k8s
+        run: |
+          if [ -f "k8s/global.yaml" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Warning: k8s/global.yaml not found, skipping update"
+          fi
+
+      - name: Update k8s/global.yaml
+        if: steps.check-k8s.outputs.exists == 'true'
+        run: |
+          # Install yq if not available
+          if ! command -v yq &> /dev/null; then
+            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+          fi
+
+          # Update image.tag
+          yq -i '.image.tag = "${{ needs.detect-and-version.outputs.image-tag }}"' k8s/global.yaml
+
+      - name: Commit and push k8s changes
+        if: steps.check-k8s.outputs.exists == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/global.yaml
+
+          # Only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "ci: update image tag to ${{ needs.detect-and-version.outputs.image-tag }}"
+            git push
+          fi
