@@ -219,7 +219,11 @@ The annotation ensures that any change to `image.revision` triggers a pod rollou
 
 - Detected by: `package.json` in root
 - Build: `npm ci` + `npm run build --if-present`
-- Tests: Currently skipped (can be added later)
+- Tests: Parallel execution of unit tests, integration tests, and security audit
+  - **Unit tests**: `npm test` (skips gracefully if `tests/unit/` has no test files)
+  - **Integration tests**: `npm run test:integration` (skips gracefully if `tests/integration/` has no test files, supports testcontainers)
+  - **Security audit**: `npm audit --audit-level=high` (fails on high/critical vulnerabilities)
+- Docker build: Only runs on `develop`, `staging`, `main` branches after all tests pass
 - Node version: 20 (configurable)
 
 ### Go
