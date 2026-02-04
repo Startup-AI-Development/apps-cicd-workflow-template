@@ -34,7 +34,7 @@ Centralized GitHub Actions workflows that provide language-aware, branch-based C
 
    jobs:
      ci:
-       uses: Startup-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/universal-ci.yaml@main
+       uses: Startup-AI-Development/apps-cicd-workflow-template/.github/workflows/universal-ci.yaml@main
        with:
          push-image: ${{ github.event_name == 'push' }}
    ```
@@ -53,6 +53,13 @@ Centralized GitHub Actions workflows that provide language-aware, branch-based C
 | `staging` | `{VERSION}-RC{n}` | `1.0.0-RC1` | No |
 | `main` | `{VERSION}` | `1.0.0` | No |
 | Other | `{VERSION}-{branch}` | `1.0.0-feature-xyz` | Yes |
+
+## Features
+
+- **Multi-arch builds**: Images are built for both `linux/amd64` and `linux/arm64`
+- **Automatic language detection**: Detects Node.js, Go, Python, or falls back to generic Docker build
+- **Branch-based versioning**: SNAPSHOT for develop, RC for staging, release for main
+- **k8s manifest updates**: Automatically updates `k8s/global.yaml` with new image tags
 
 ## Language Detection
 
