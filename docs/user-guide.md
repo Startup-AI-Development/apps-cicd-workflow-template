@@ -68,17 +68,23 @@ If you want the CI to automatically update your Kubernetes manifests with new im
 
 ```
 k8s/
-└── global.yaml
+├── global.yaml   # Shared values (namespace, probes, resources, etc.)
+├── dev.yaml      # Development: image.tag + image.revision
+├── stg.yaml      # Staging: image.tag + image.revision
+└── prod.yaml     # Production: image.tag + image.revision
 ```
 
-The `k8s/global.yaml` file should contain at minimum:
+The per-environment files can start empty or with environment-specific overrides. The CI will automatically add `image.tag` and `image.revision` based on the branch:
 
-```yaml
-image:
-  tag: "1.0.0"
-```
+| Branch | File Updated | Example Tag |
+|--------|--------------|-------------|
+| `develop` | `k8s/dev.yaml` | `1.0.0-SNAPSHOT` |
+| `staging` | `k8s/stg.yaml` | `1.0.0-RC1` |
+| `main` | `k8s/prod.yaml` | `1.0.0` |
 
-After each successful image push, the workflow will update this file with the new tag.
+After each successful image push, the workflow updates the environment-specific file with:
+- `image.tag` - the version tag (e.g., `1.0.0-SNAPSHOT`)
+- `image.revision` - the 7-char commit SHA for pod rollouts
 
 ### Step 4: Create CI Workflow
 
@@ -171,6 +177,41 @@ jobs:
 ```
 
 Then trigger manually from Actions tab when needed.
+
+## Revision Tracking for Pod Rollouts
+
+When using mutable tags like `1.0.0-SNAPSHOT` (develop branch), Kubernetes won't automatically roll out new pods when you push a new image with the same tag. The `image.revision` field solves this by providing a unique value (commit SHA) for each build.
+
+### How It Works
+
+1. CI builds and pushes the image with tag `1.0.0-SNAPSHOT`
+2. CI updates `k8s/dev.yaml` with `image.revision: abc1234`
+3. Your Helm chart uses this revision as a pod annotation
+4. When the revision changes, Kubernetes sees a spec change and triggers a rollout
+
+### Helm Chart Configuration
+
+To enable revision-based rollouts, configure your Helm chart:
+
+**values.yaml:**
+```yaml
+image:
+  repository: ghcr.io/your-org/your-app
+  tag: "1.0.0-SNAPSHOT"
+  revision: ""  # Set automatically by CI
+  pullPolicy: Always  # Recommended for dev/stg
+```
+
+**deployment.yaml template:**
+```yaml
+spec:
+  template:
+    metadata:
+      annotations:
+        app.kubernetes.io/revision: "{{ .Values.image.revision | default "" }}"
+```
+
+The annotation ensures that any change to `image.revision` triggers a pod rollout, even when the image tag stays the same.
 
 ## Language-Specific Notes
 

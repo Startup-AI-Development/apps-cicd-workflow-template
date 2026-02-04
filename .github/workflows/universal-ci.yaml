@@ -45,6 +45,7 @@ jobs:
       language: ${{ steps.detect.outputs.language }}
       image-name: ${{ steps.version.outputs.image-name }}
       image-tag: ${{ steps.version.outputs.image-tag }}
+      commit-sha: ${{ steps.version.outputs.commit-sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -107,6 +108,7 @@ jobs:
           esac
 
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "commit-sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
           echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
 
   # Node.js Build
@@ -366,18 +368,40 @@ jobs:
         with:
           ref: ${{ github.ref }}
 
-      - name: Check if k8s/global.yaml exists
-        id: check-k8s
+      - name: Determine environment file
+        id: env-file
         run: |
-          if [ -f "k8s/global.yaml" ]; then
+          # Map branch to environment file
+          BRANCH="${{ github.ref_name }}"
+          case "$BRANCH" in
+            develop)
+              ENV_FILE="k8s/dev.yaml"
+              ;;
+            staging)
+              ENV_FILE="k8s/stg.yaml"
+              ;;
+            main)
+              ENV_FILE="k8s/prod.yaml"
+              ;;
+            *)
+              ENV_FILE=""
+              ;;
+          esac
+
+          if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
+            echo "path=${ENV_FILE}" >> $GITHUB_OUTPUT
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Warning: k8s/global.yaml not found, skipping update"
+            if [ -n "$ENV_FILE" ]; then
+              echo "Warning: ${ENV_FILE} not found, skipping k8s update"
+            else
+              echo "Warning: Branch ${BRANCH} has no mapped environment file, skipping k8s update"
+            fi
           fi
 
-      - name: Update k8s/global.yaml
-        if: steps.check-k8s.outputs.exists == 'true'
+      - name: Update environment file
+        if: steps.env-file.outputs.exists == 'true'
         run: |
           # Install yq if not available
           if ! command -v yq &> /dev/null; then
@@ -385,20 +409,23 @@ jobs:
             sudo chmod +x /usr/local/bin/yq
           fi
 
-          # Update image.tag
-          yq -i '.image.tag = "${{ needs.detect-and-version.outputs.image-tag }}"' k8s/global.yaml
+          ENV_FILE="${{ steps.env-file.outputs.path }}"
+
+          # Update image.tag and image.revision in environment file
+          yq -i '.image.tag = "${{ needs.detect-and-version.outputs.image-tag }}"' "$ENV_FILE"
+          yq -i '.image.revision = "${{ needs.detect-and-version.outputs.commit-sha }}"' "$ENV_FILE"
 
       - name: Commit and push k8s changes
-        if: steps.check-k8s.outputs.exists == 'true'
+        if: steps.env-file.outputs.exists == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add k8s/global.yaml
+          git add "${{ steps.env-file.outputs.path }}"
 
           # Only commit if there are changes
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "ci: update image tag to ${{ needs.detect-and-version.outputs.image-tag }}"
+            git commit -m "ci: update image to ${{ needs.detect-and-version.outputs.image-tag }} [skip ci]"
             git push
           fi
