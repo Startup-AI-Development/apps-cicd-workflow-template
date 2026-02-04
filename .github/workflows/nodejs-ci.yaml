@@ -1,6 +1,9 @@
 # Node.js CI Workflow
-# Builds Node.js applications and pushes Docker images
-# Note: Tests omitted for now - can be added later
+# Builds Node.js applications with testing and security audit before Docker image build
+#
+# Flow:
+#   ALL BRANCHES: build → [unit-tests | integration-tests | security-audit] (parallel)
+#   develop/staging/main ONLY: → docker-build → update-k8s
 
 name: Node.js CI
 
@@ -36,6 +39,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ============================================================================
+  # BUILD - Runs on ALL branches
+  # Produces artifacts for downstream jobs
+  # ============================================================================
   build:
     runs-on: ubuntu-latest
     steps:
@@ -56,9 +63,120 @@ jobs:
       - name: Build
         run: npm run build --if-present
 
-      # Note: npm test omitted for now - can be added later
-      # - name: Test
-      #   run: npm test
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            node_modules/
+            dist/
+            package-lock.json
+          retention-days: 1
+
+  # ============================================================================
+  # UNIT TESTS - Runs on ALL branches (parallel with other test jobs)
+  # Gracefully skips if no unit tests exist
+  # ============================================================================
+  unit-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Run unit tests
+        run: |
+          # Check if unit tests exist
+          if find tests/unit -name "*.test.ts" -o -name "*.test.js" -o -name "*.spec.ts" -o -name "*.spec.js" 2>/dev/null | grep -q .; then
+            echo "✓ Unit tests found, running npm test"
+            npm test
+          else
+            echo "⚠ No unit tests found in tests/unit/, skipping"
+            echo "  (This is not an error - the job will pass)"
+          fi
+
+  # ============================================================================
+  # INTEGRATION TESTS - Runs on ALL branches (parallel with other test jobs)
+  # Supports testcontainers, gracefully skips if no integration tests exist
+  # ============================================================================
+  integration-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Run integration tests
+        run: |
+          # Check if integration tests exist
+          if find tests/integration -name "*.integration.test.ts" -o -name "*.integration.test.js" -o -name "*.integration.spec.ts" -o -name "*.integration.spec.js" 2>/dev/null | grep -q .; then
+            echo "✓ Integration tests found, running npm run test:integration"
+            npm run test:integration
+          else
+            echo "⚠ No integration tests found in tests/integration/, skipping"
+            echo "  (This is not an error - the job will pass)"
+          fi
+
+  # ============================================================================
+  # SECURITY AUDIT - Runs on ALL branches (parallel with other test jobs)
+  # Fails if high or critical vulnerabilities are found
+  # ============================================================================
+  security-audit:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Run security audit
+        run: |
+          echo "Running npm audit --audit-level=high"
+          npm audit --audit-level=high
+
+  # ============================================================================
+  # DOCKER BUILD - Runs ONLY on develop, staging, main branches
+  # Requires all test jobs to pass
+  # ============================================================================
+  docker-build:
+    needs: [unit-tests, integration-tests, security-audit]
+    runs-on: ubuntu-latest
+    if: contains(fromJSON('["develop", "staging", "main"]'), github.ref_name)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Validate Dockerfile exists
         run: |
@@ -95,8 +213,12 @@ jobs:
           git tag "${{ inputs.image-tag }}"
           git push origin "${{ inputs.image-tag }}"
 
+  # ============================================================================
+  # UPDATE K8S - Runs ONLY on develop, staging, main branches
+  # Updates k8s/global.yaml with new image tag
+  # ============================================================================
   update-k8s:
-    needs: build
+    needs: docker-build
     runs-on: ubuntu-latest
     if: inputs.push-image && github.event_name == 'push'
     steps:
