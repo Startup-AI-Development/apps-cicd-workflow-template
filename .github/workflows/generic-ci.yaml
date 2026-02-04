@@ -1,0 +1,122 @@
+# Generic CI Workflow
+# Base workflow for Docker build/push and k8s manifest update
+# Called by language-specific workflows or directly for apps without build steps
+
+name: Generic CI
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: 'Full image name (ghcr.io/org/repo)'
+        required: true
+        type: string
+      image-tag:
+        description: 'Image tag to use'
+        required: true
+        type: string
+      push-image:
+        description: 'Whether to push the image'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Dockerfile exists
+        run: |
+          if [ ! -f "Dockerfile" ]; then
+            echo "Error: Dockerfile not found in repository root"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: inputs.push-image
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ inputs.push-image }}
+          tags: ${{ inputs.image-name }}:${{ inputs.image-tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create git tag for RC/release
+        if: inputs.push-image && (github.ref_name == 'staging' || github.ref_name == 'main')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ inputs.image-tag }}"
+          git push origin "${{ inputs.image-tag }}"
+
+  update-k8s:
+    needs: docker-build
+    runs-on: ubuntu-latest
+    if: inputs.push-image && github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Check if k8s/global.yaml exists
+        id: check-k8s
+        run: |
+          if [ -f "k8s/global.yaml" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Warning: k8s/global.yaml not found, skipping update"
+          fi
+
+      - name: Update k8s/global.yaml
+        if: steps.check-k8s.outputs.exists == 'true'
+        run: |
+          # Install yq if not available
+          if ! command -v yq &> /dev/null; then
+            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+          fi
+
+          # Update image.tag
+          yq -i '.image.tag = "${{ inputs.image-tag }}"' k8s/global.yaml
+
+      - name: Commit and push k8s changes
+        if: steps.check-k8s.outputs.exists == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/global.yaml
+
+          # Only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "ci: update image tag to ${{ inputs.image-tag }}"
+            git push
+          fi
