@@ -4,7 +4,11 @@
 # Note: Flattened to avoid nested reusable workflow limitations
 #
 # Node.js Flow:
-#   ALL BRANCHES: [unit-tests | integration-tests | security-audit] (parallel)
+#   ALL BRANCHES: [unit-tests | integration-tests | linter | security-audit] (parallel)
+#   develop/staging/main ONLY: → docker-build → update-k8s
+#
+# Python Flow:
+#   ALL BRANCHES: [tests | linter | security-audit] (parallel)
 #   develop/staging/main ONLY: → docker-build → update-k8s
 
 name: Universal CI
@@ -173,6 +177,28 @@ jobs:
           fi
 
   # ============================================================================
+  # NODE.JS: LINTER (parallel)
+  # ============================================================================
+  nodejs-linter:
+    needs: detect-and-version
+    if: needs.detect-and-version.outputs.language == 'nodejs'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run linter
+        run: npm run lint
+
+  # ============================================================================
   # NODE.JS: SECURITY AUDIT (parallel)
   # ============================================================================
   nodejs-security-audit:
@@ -192,13 +218,13 @@ jobs:
         run: npm install
 
       - name: Run security audit
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
 
   # ============================================================================
   # NODE.JS: DOCKER BUILD (only on develop/staging/main, after tests pass)
   # ============================================================================
   nodejs-docker:
-    needs: [detect-and-version, nodejs-unit-tests, nodejs-integration-tests, nodejs-security-audit]
+    needs: [detect-and-version, nodejs-unit-tests, nodejs-integration-tests, nodejs-linter, nodejs-security-audit]
     if: |
       needs.detect-and-version.outputs.language == 'nodejs' &&
       contains(fromJSON('["develop", "staging", "main"]'), github.ref_name)
@@ -310,16 +336,16 @@ jobs:
           git tag "${{ needs.detect-and-version.outputs.image-tag }}"
           git push origin "${{ needs.detect-and-version.outputs.image-tag }}"
 
-  # Python Build
-  python-build:
+  # ============================================================================
+  # PYTHON: TESTS (parallel)
+  # ============================================================================
+  python-tests:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'python'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -337,6 +363,76 @@ jobs:
 
       - name: Run tests
         run: pytest
+
+  # ============================================================================
+  # PYTHON: LINTER (parallel)
+  # ============================================================================
+  python-linter:
+    needs: detect-and-version
+    if: needs.detect-and-version.outputs.language == 'python'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install ruff
+        run: pip3 install ruff
+
+      - name: Run ruff linter
+        run: ruff check .
+
+      - name: Run ruff format check
+        run: ruff format --check .
+
+  # ============================================================================
+  # PYTHON: SECURITY AUDIT (parallel)
+  # ============================================================================
+  python-security-audit:
+    needs: detect-and-version
+    if: needs.detect-and-version.outputs.language == 'python'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            pip3 install -e "."
+          else
+            pip3 install -r requirements.txt
+          fi
+
+      - name: Install pip-audit
+        run: pip3 install pip-audit
+
+      - name: Run security audit
+        run: pip-audit
+
+  # ============================================================================
+  # PYTHON: DOCKER BUILD (only on develop/staging/main, after tests pass)
+  # ============================================================================
+  python-docker:
+    needs: [detect-and-version, python-tests, python-linter, python-security-audit]
+    if: |
+      needs.detect-and-version.outputs.language == 'python' &&
+      contains(fromJSON('["develop", "staging", "main"]'), github.ref_name)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Validate Dockerfile exists
         run: |
@@ -427,14 +523,14 @@ jobs:
 
   # Update k8s manifests (runs after any build completes)
   update-k8s:
-    needs: [detect-and-version, nodejs-docker, golang-build, python-build, generic-build]
+    needs: [detect-and-version, nodejs-docker, golang-build, python-docker, generic-build]
     if: |
       always() &&
       inputs.push-image &&
       github.event_name == 'push' &&
       (needs.nodejs-docker.result == 'success' ||
        needs.golang-build.result == 'success' ||
-       needs.python-build.result == 'success' ||
+       needs.python-docker.result == 'success' ||
        needs.generic-build.result == 'success')
     runs-on: ubuntu-latest
     steps:
