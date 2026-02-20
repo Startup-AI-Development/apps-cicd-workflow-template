@@ -190,17 +190,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Create git tag for RC/release
-        if: inputs.push-image && (github.ref_name == 'staging' || github.ref_name == 'main')
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${{ inputs.image-tag }}"
-          git push origin "${{ inputs.image-tag }}"
+      - name: Create git tag
+        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/git-tag@main
+        with:
+          image-tag: ${{ inputs.image-tag }}
+          push-image: ${{ inputs.push-image }}
 
   # ============================================================================
   # UPDATE K8S - Runs ONLY on develop, staging, main branches
-  # Updates k8s/global.yaml with new image tag
+  # Updates k8s environment file with new image tag
   # ============================================================================
   update-k8s:
     needs: docker-build
@@ -212,39 +210,8 @@ jobs:
         with:
           ref: ${{ github.ref }}
 
-      - name: Check if k8s/global.yaml exists
-        id: check-k8s
-        run: |
-          if [ -f "k8s/global.yaml" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Warning: k8s/global.yaml not found, skipping update"
-          fi
-
-      - name: Update k8s/global.yaml
-        if: steps.check-k8s.outputs.exists == 'true'
-        run: |
-          # Install yq if not available
-          if ! command -v yq &> /dev/null; then
-            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-            sudo chmod +x /usr/local/bin/yq
-          fi
-
-          # Update image.tag
-          yq -i '.image.tag = "${{ inputs.image-tag }}"' k8s/global.yaml
-
-      - name: Commit and push k8s changes
-        if: steps.check-k8s.outputs.exists == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add k8s/global.yaml
-
-          # Only commit if there are changes
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "ci: update image tag to ${{ inputs.image-tag }}"
-            git push
-          fi
+      - name: Update k8s manifests
+        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/update-k8s@main
+        with:
+          image-tag: ${{ inputs.image-tag }}
+          commit-sha: ${{ github.sha }}

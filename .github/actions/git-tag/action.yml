@@ -1,0 +1,22 @@
+name: Create Git Tag
+description: Create and push git tag for RC/release builds (staging and main branches only)
+
+inputs:
+  image-tag:
+    description: 'Tag to create'
+    required: true
+  push-image:
+    description: 'Whether images were pushed (only tag if true)'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Create git tag for RC/release
+      if: inputs.push-image == 'true' && (github.ref_name == 'staging' || github.ref_name == 'main')
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag "${{ inputs.image-tag }}"
+        git push origin "${{ inputs.image-tag }}"

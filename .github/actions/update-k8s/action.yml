@@ -1,0 +1,73 @@
+name: Update K8s Manifests
+description: Update k8s environment file with new image tag and commit
+
+inputs:
+  image-tag:
+    description: 'Image tag to set'
+    required: true
+  commit-sha:
+    description: 'Short commit SHA for image.revision'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Determine environment file
+      id: env-file
+      shell: bash
+      run: |
+        BRANCH="${{ github.ref_name }}"
+        case "$BRANCH" in
+          develop)
+            ENV_FILE="k8s/dev.yaml"
+            ;;
+          staging)
+            ENV_FILE="k8s/stg.yaml"
+            ;;
+          main)
+            ENV_FILE="k8s/prod.yaml"
+            ;;
+          *)
+            ENV_FILE=""
+            ;;
+        esac
+
+        if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
+          echo "path=${ENV_FILE}" >> $GITHUB_OUTPUT
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          if [ -n "$ENV_FILE" ]; then
+            echo "Warning: ${ENV_FILE} not found, skipping k8s update"
+          else
+            echo "Warning: Branch ${BRANCH} has no mapped environment file, skipping k8s update"
+          fi
+        fi
+
+    - name: Update environment file
+      if: steps.env-file.outputs.exists == 'true'
+      shell: bash
+      run: |
+        if ! command -v yq &> /dev/null; then
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+        fi
+
+        ENV_FILE="${{ steps.env-file.outputs.path }}"
+        yq -i '.image.tag = "${{ inputs.image-tag }}"' "$ENV_FILE"
+        yq -i '.image.revision = "${{ inputs.commit-sha }}"' "$ENV_FILE"
+
+    - name: Commit and push k8s changes
+      if: steps.env-file.outputs.exists == 'true'
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add "${{ steps.env-file.outputs.path }}"
+
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "ci: update image to ${{ inputs.image-tag }} [skip ci]"
+          git push
+        fi
