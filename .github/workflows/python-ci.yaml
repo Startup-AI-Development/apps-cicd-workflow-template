@@ -1,5 +1,9 @@
 # Python CI Workflow
-# Builds Python applications with tests and pushes Docker images
+# Builds Python applications with linting, testing, and security audit before Docker image build
+#
+# Flow:
+#   ALL BRANCHES: build → [tests | linter | security-audit] (parallel)
+#   develop/staging/main ONLY: → docker-build → update-k8s
 
 name: Python CI
 
@@ -35,6 +39,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ============================================================================
+  # BUILD - Runs on ALL branches
+  # Installs dependencies for downstream jobs
+  # ============================================================================
   build:
     runs-on: ubuntu-latest
     steps:
@@ -57,8 +65,103 @@ jobs:
             pip3 install pytest
           fi
 
+  # ============================================================================
+  # TESTS - Runs on ALL branches (parallel with other jobs)
+  # ============================================================================
+  tests:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            pip3 install -e ".[dev]"
+          else
+            pip3 install -r requirements.txt
+            pip3 install pytest
+          fi
+
       - name: Run tests
         run: pytest
+
+  # ============================================================================
+  # LINTER - Runs on ALL branches (parallel with other jobs)
+  # Uses ruff for fast Python linting and format checking
+  # ============================================================================
+  linter:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install ruff
+        run: pip3 install ruff
+
+      - name: Run ruff linter
+        run: ruff check .
+
+      - name: Run ruff format check
+        run: ruff format --check .
+
+  # ============================================================================
+  # SECURITY AUDIT - Runs on ALL branches (parallel with other jobs)
+  # Uses pip-audit to check for known vulnerabilities in dependencies
+  # ============================================================================
+  security-audit:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            pip3 install -e "."
+          else
+            pip3 install -r requirements.txt
+          fi
+
+      - name: Install pip-audit
+        run: pip3 install pip-audit
+
+      - name: Run security audit
+        run: |
+          echo "Running pip-audit for known vulnerabilities"
+          pip-audit
+
+  # ============================================================================
+  # DOCKER BUILD - Runs ONLY on develop, staging, main branches
+  # Requires all test/lint/audit jobs to pass
+  # ============================================================================
+  docker-build:
+    needs: [tests, linter, security-audit]
+    runs-on: ubuntu-latest
+    if: contains(fromJSON('["develop", "staging", "main"]'), github.ref_name)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Validate Dockerfile exists
         run: |
@@ -95,8 +198,12 @@ jobs:
           git tag "${{ inputs.image-tag }}"
           git push origin "${{ inputs.image-tag }}"
 
+  # ============================================================================
+  # UPDATE K8S - Runs ONLY on develop, staging, main branches
+  # Updates k8s/global.yaml with new image tag
+  # ============================================================================
   update-k8s:
-    needs: build
+    needs: docker-build
     runs-on: ubuntu-latest
     if: inputs.push-image && github.event_name == 'push'
     steps:

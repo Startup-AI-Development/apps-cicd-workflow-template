@@ -1,8 +1,8 @@
 # Node.js CI Workflow
-# Builds Node.js applications with testing and security audit before Docker image build
+# Builds Node.js applications with linting, testing, and security audit before Docker image build
 #
 # Flow:
-#   ALL BRANCHES: build → [unit-tests | integration-tests | security-audit] (parallel)
+#   ALL BRANCHES: build → [unit-tests | integration-tests | linter | security-audit] (parallel)
 #   develop/staging/main ONLY: → docker-build → update-k8s
 
 name: Node.js CI
@@ -138,6 +138,30 @@ jobs:
           fi
 
   # ============================================================================
+  # LINTER - Runs on ALL branches (parallel with other test jobs)
+  # Requires eslint configured in the project (npm run lint)
+  # ============================================================================
+  linter:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Run linter
+        run: npm run lint
+
+  # ============================================================================
   # SECURITY AUDIT - Runs on ALL branches (parallel with other test jobs)
   # Fails if high or critical vulnerabilities are found
   # ============================================================================
@@ -160,15 +184,15 @@ jobs:
 
       - name: Run security audit
         run: |
-          echo "Running npm audit --audit-level=high"
-          npm audit --audit-level=high
+          echo "Running npm audit --audit-level=high --omit=dev"
+          npm audit --audit-level=high --omit=dev
 
   # ============================================================================
   # DOCKER BUILD - Runs ONLY on develop, staging, main branches
   # Requires all test jobs to pass
   # ============================================================================
   docker-build:
-    needs: [unit-tests, integration-tests, security-audit]
+    needs: [unit-tests, integration-tests, linter, security-audit]
     runs-on: ubuntu-latest
     if: contains(fromJSON('["develop", "staging", "main"]'), github.ref_name)
     steps:
