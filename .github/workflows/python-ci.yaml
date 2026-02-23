@@ -44,7 +44,7 @@ jobs:
   # Installs dependencies for downstream jobs
   # ============================================================================
   build:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -70,7 +70,7 @@ jobs:
   # ============================================================================
   tests:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -98,7 +98,7 @@ jobs:
   # ============================================================================
   linter:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -123,7 +123,7 @@ jobs:
   # ============================================================================
   security-audit:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -155,7 +155,7 @@ jobs:
   # ============================================================================
   docker-build:
     needs: [tests, linter, security-audit]
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     if: contains(fromJSON('["develop", "staging", "main"]'), github.ref_name)
     steps:
       - name: Checkout
@@ -202,7 +202,7 @@ jobs:
   # ============================================================================
   update-k8s:
     needs: docker-build
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     if: inputs.push-image && github.event_name == 'push'
     steps:
       - name: Checkout

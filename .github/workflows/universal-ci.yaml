@@ -48,7 +48,7 @@ concurrency:
 
 jobs:
   detect-and-version:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     outputs:
       language: ${{ steps.detect.outputs.language }}
       image-name: ${{ steps.version.outputs.image-name }}
@@ -125,7 +125,7 @@ jobs:
   nodejs-unit-tests:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'nodejs'
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -153,7 +153,7 @@ jobs:
   nodejs-integration-tests:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'nodejs'
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -182,7 +182,7 @@ jobs:
   nodejs-linter:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'nodejs'
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -204,7 +204,7 @@ jobs:
   nodejs-security-audit:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'nodejs'
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -228,7 +228,7 @@ jobs:
     if: |
       needs.detect-and-version.outputs.language == 'nodejs' &&
       contains(fromJSON('["develop", "staging", "main"]'), github.ref_name)
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -256,7 +256,7 @@ jobs:
   golang-build:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'golang'
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -298,7 +298,7 @@ jobs:
   python-tests:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'python'
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -326,7 +326,7 @@ jobs:
   python-linter:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'python'
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -351,7 +351,7 @@ jobs:
   python-security-audit:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'python'
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -383,7 +383,7 @@ jobs:
     if: |
       needs.detect-and-version.outputs.language == 'python' &&
       contains(fromJSON('["develop", "staging", "main"]'), github.ref_name)
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -411,7 +411,7 @@ jobs:
   generic-build:
     needs: detect-and-version
     if: needs.detect-and-version.outputs.language == 'generic'
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -446,7 +446,7 @@ jobs:
        needs.golang-build.result == 'success' ||
        needs.python-docker.result == 'success' ||
        needs.generic-build.result == 'success')
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
