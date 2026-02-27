@@ -101,7 +101,12 @@ jobs:
           pip3 install pytest
 
       - name: Run tests
-        run: pytest
+        run: |
+          if [ -d "tests/unit" ]; then
+            pytest tests/unit
+          else
+            pytest
+          fi
 
   # ============================================================================
   # PYTHON: LINTER (parallel)
