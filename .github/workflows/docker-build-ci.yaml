@@ -93,12 +93,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          if [ -f "pyproject.toml" ]; then
-            pip3 install -e ".[dev]"
-          else
+          if [ -f "requirements.txt" ]; then
             pip3 install -r requirements.txt
-            pip3 install pytest
+          elif [ -f "pyproject.toml" ]; then
+            pip3 install -e ".[dev]"
           fi
+          pip3 install pytest
 
       - name: Run tests
         run: pytest
@@ -120,7 +120,12 @@ jobs:
           python-version: ${{ inputs.python-version }}
 
       - name: Install ruff
-        run: pip3 install ruff
+        run: |
+          if [ -f "requirements.txt" ] && grep -q "ruff" requirements.txt; then
+            pip3 install $(grep "ruff" requirements.txt)
+          else
+            pip3 install ruff
+          fi
 
       - name: Run ruff linter
         run: ruff check .
@@ -146,10 +151,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          if [ -f "pyproject.toml" ]; then
-            pip3 install -e "."
-          else
+          if [ -f "requirements.txt" ]; then
             pip3 install -r requirements.txt
+          elif [ -f "pyproject.toml" ]; then
+            pip3 install -e "."
           fi
 
       - name: Install pip-audit
