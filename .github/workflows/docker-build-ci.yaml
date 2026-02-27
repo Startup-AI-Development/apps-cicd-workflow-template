@@ -1,0 +1,195 @@
+# Docker Build CI Workflow (Reusable)
+# Lightweight variant of universal-ci.yaml for services that only need
+# quality gates + a Docker image on main. No VERSION file, no git tags,
+# no update-k8s job.
+# Docker tags: latest + {commit-sha}.
+#
+# Python Flow:
+#   ALL BRANCHES: detect-language → [tests | linter | security-audit] (parallel)
+#   main ONLY: → docker-build (tags: latest + commit-sha)
+
+name: Docker Build CI
+
+on:
+  workflow_call:
+    inputs:
+      push-image:
+        description: 'Whether to push the image to GHCR'
+        required: false
+        type: boolean
+        default: true
+      python-version:
+        description: 'Python version for quality gates'
+        required: false
+        type: string
+        default: '3.12'
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # DETECT LANGUAGE & IMAGE METADATA
+  # ============================================================================
+  detect-and-image:
+    runs-on: arc-runner-set-dev
+    outputs:
+      language: ${{ steps.detect.outputs.language }}
+      image-name: ${{ steps.image.outputs.image-name }}
+      commit-sha: ${{ steps.image.outputs.commit-sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect language
+        id: detect
+        run: |
+          if [ -f "package.json" ]; then
+            echo "language=nodejs" >> $GITHUB_OUTPUT
+            echo "Detected: Node.js (package.json)"
+          elif [ -f "go.mod" ]; then
+            echo "language=golang" >> $GITHUB_OUTPUT
+            echo "Detected: Go (go.mod)"
+          elif [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
+            echo "language=python" >> $GITHUB_OUTPUT
+            echo "Detected: Python (pyproject.toml or requirements.txt)"
+          else
+            echo "language=generic" >> $GITHUB_OUTPUT
+            echo "Detected: Generic (no language files found)"
+          fi
+
+      - name: Determine image name and tags
+        id: image
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2 | tr '[:upper:]' '[:lower:]')
+          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/${REPO_NAME}"
+          IMAGE_NAME=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+          COMMIT_SHA="${GITHUB_SHA::7}"
+          echo "image-name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
+          echo "commit-sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
+          echo "Image: ${IMAGE_NAME}:latest / ${IMAGE_NAME}:${COMMIT_SHA}"
+
+  # ============================================================================
+  # PYTHON: TESTS (parallel)
+  # ============================================================================
+  python-tests:
+    needs: detect-and-image
+    if: needs.detect-and-image.outputs.language == 'python'
+    runs-on: arc-runner-set-dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            pip3 install -e ".[dev]"
+          else
+            pip3 install -r requirements.txt
+            pip3 install pytest
+          fi
+
+      - name: Run tests
+        run: pytest
+
+  # ============================================================================
+  # PYTHON: LINTER (parallel)
+  # ============================================================================
+  python-linter:
+    needs: detect-and-image
+    if: needs.detect-and-image.outputs.language == 'python'
+    runs-on: arc-runner-set-dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install ruff
+        run: pip3 install ruff
+
+      - name: Run ruff linter
+        run: ruff check .
+
+      - name: Run ruff format check
+        run: ruff format --check .
+
+  # ============================================================================
+  # PYTHON: SECURITY AUDIT (parallel)
+  # ============================================================================
+  python-security-audit:
+    needs: detect-and-image
+    if: needs.detect-and-image.outputs.language == 'python'
+    runs-on: arc-runner-set-dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            pip3 install -e "."
+          else
+            pip3 install -r requirements.txt
+          fi
+
+      - name: Install pip-audit
+        run: pip3 install pip-audit
+
+      - name: Run security audit
+        run: pip-audit
+
+  # ============================================================================
+  # PYTHON: DOCKER BUILD (only on main, after quality gates pass)
+  # Uses docker/build-push-action directly for dual tags (latest + commit-sha)
+  # ============================================================================
+  python-docker:
+    needs: [detect-and-image, python-tests, python-linter, python-security-audit]
+    if: |
+      needs.detect-and-image.outputs.language == 'python' &&
+      github.ref_name == 'main'
+    runs-on: arc-runner-set-dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: inputs.push-image
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ inputs.push-image }}
+          tags: |
+            ${{ needs.detect-and-image.outputs.image-name }}:latest
+            ${{ needs.detect-and-image.outputs.image-name }}:${{ needs.detect-and-image.outputs.commit-sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
