@@ -1,12 +1,12 @@
 # Docker Build CI Workflow (Reusable)
 # Lightweight variant of universal-ci.yaml for services that only need
-# quality gates + a Docker image on main. No VERSION file, no git tags,
+# quality gates + a Docker image on main/tags. No VERSION file, no git tags,
 # no update-k8s job.
-# Docker tags: latest + {commit-sha}.
 #
 # Python Flow:
 #   ALL BRANCHES: detect-language → [tests | linter | security-audit] (parallel)
 #   main ONLY: → docker-build (tags: latest + commit-sha)
+#   git tag ONLY: → docker-build (tags: latest + {tag-name})
 
 name: Docker Build CI
 
@@ -43,6 +43,8 @@ jobs:
       language: ${{ steps.detect.outputs.language }}
       image-name: ${{ steps.image.outputs.image-name }}
       commit-sha: ${{ steps.image.outputs.commit-sha }}
+      is-tag: ${{ steps.image.outputs.is-tag }}
+      version-tag: ${{ steps.image.outputs.version-tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -73,7 +75,18 @@ jobs:
           COMMIT_SHA="${GITHUB_SHA::7}"
           echo "image-name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
           echo "commit-sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
-          echo "Image: ${IMAGE_NAME}:latest / ${IMAGE_NAME}:${COMMIT_SHA}"
+
+          # Detect if triggered by a git tag
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION_TAG="${GITHUB_REF#refs/tags/}"
+            echo "is-tag=true" >> $GITHUB_OUTPUT
+            echo "version-tag=${VERSION_TAG}" >> $GITHUB_OUTPUT
+            echo "Image: ${IMAGE_NAME}:latest / ${IMAGE_NAME}:${VERSION_TAG}"
+          else
+            echo "is-tag=false" >> $GITHUB_OUTPUT
+            echo "version-tag=" >> $GITHUB_OUTPUT
+            echo "Image: ${IMAGE_NAME}:latest / ${IMAGE_NAME}:${COMMIT_SHA}"
+          fi
 
   # ============================================================================
   # PYTHON: TESTS (parallel)
@@ -169,14 +182,15 @@ jobs:
         run: pip-audit
 
   # ============================================================================
-  # PYTHON: DOCKER BUILD (only on main, after quality gates pass)
-  # Uses docker/build-push-action directly for dual tags (latest + commit-sha)
+  # PYTHON: DOCKER BUILD (main or tags, after quality gates pass)
+  # main: tags image with latest + commit-sha
+  # git tag: tags image with latest + tag name (e.g. v1.0.0)
   # ============================================================================
   python-docker:
     needs: [detect-and-image, python-tests, python-linter, python-security-audit]
     if: |
       needs.detect-and-image.outputs.language == 'python' &&
-      github.ref_name == 'main'
+      (github.ref_name == 'main' || needs.detect-and-image.outputs.is-tag == 'true')
     runs-on: arc-runner-set-dev
     steps:
       - name: Checkout
@@ -193,13 +207,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Determine Docker tags
+        id: docker-tags
+        run: |
+          IMAGE="${{ needs.detect-and-image.outputs.image-name }}"
+          if [ "${{ needs.detect-and-image.outputs.is-tag }}" == "true" ]; then
+            TAGS="${IMAGE}:latest,${IMAGE}:${{ needs.detect-and-image.outputs.version-tag }}"
+          else
+            TAGS="${IMAGE}:latest,${IMAGE}:${{ needs.detect-and-image.outputs.commit-sha }}"
+          fi
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          echo "Docker tags: ${TAGS}"
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           push: ${{ inputs.push-image }}
-          tags: |
-            ${{ needs.detect-and-image.outputs.image-name }}:latest
-            ${{ needs.detect-and-image.outputs.image-name }}:${{ needs.detect-and-image.outputs.commit-sha }}
+          tags: ${{ steps.docker-tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
