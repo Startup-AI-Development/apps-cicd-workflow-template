@@ -228,7 +228,10 @@ jobs:
     if: |
       needs.detect-and-version.outputs.language == 'nodejs' &&
       contains(fromJSON('["develop", "staging", "main"]'), github.ref_name)
-    runs-on: arc-runner-set-dev
+    # Runs on GitHub-hosted runners instead of self-hosted (arc-runner-set-dev) to avoid
+    # saturating the k8s node. Docker builds are CPU-intensive and have no resource limits
+    # on the dind container, which can starve other workloads on the single-node cluster.
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -383,7 +386,10 @@ jobs:
     if: |
       needs.detect-and-version.outputs.language == 'python' &&
       contains(fromJSON('["develop", "staging", "main"]'), github.ref_name)
-    runs-on: arc-runner-set-dev
+    # Runs on GitHub-hosted runners instead of self-hosted (arc-runner-set-dev) to avoid
+    # saturating the k8s node. Docker builds are CPU-intensive and have no resource limits
+    # on the dind container, which can starve other workloads on the single-node cluster.
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
