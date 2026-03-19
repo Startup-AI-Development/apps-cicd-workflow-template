@@ -1,5 +1,5 @@
 name: Docker Build and Push
-description: Build and push Docker image to GHCR with multi-platform support
+description: Build and push Docker image to GHCR
 
 inputs:
   image-name:
@@ -29,9 +29,6 @@ runs:
           exit 1
         fi
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
-
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -47,7 +44,7 @@ runs:
       uses: docker/build-push-action@v5
       with:
         context: .
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
         push: ${{ inputs.push-image }}
         tags: ${{ inputs.image-name }}:${{ inputs.image-tag }}
         pull: true
