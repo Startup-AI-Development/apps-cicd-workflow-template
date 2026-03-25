@@ -28,6 +28,11 @@ on:
         required: false
         type: string
         default: '3.12'
+      pip-audit-extra-args:
+        description: 'Extra arguments for pip-audit (e.g. --ignore-vuln CVE-XXXX-XXXXX)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -147,7 +152,7 @@ jobs:
       - name: Run security audit
         run: |
           echo "Running pip-audit for known vulnerabilities"
-          pip-audit
+          pip-audit ${{ inputs.pip-audit-extra-args }}
 
   # ============================================================================
   # DOCKER BUILD - Runs ONLY on develop, staging, main branches

@@ -36,6 +36,11 @@ on:
         required: false
         type: string
         default: '3.12'
+      pip-audit-extra-args:
+        description: 'Extra arguments for pip-audit (e.g. --ignore-vuln CVE-XXXX-XXXXX)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -136,7 +141,9 @@ jobs:
           node-version: ${{ inputs.node-version }}
 
       - name: Install dependencies
-        run: HUSKY=0 npm install
+        run: |
+          npm config set cache /tmp/arc-cache/npm --global
+          HUSKY=0 npm install
 
       - name: Run unit tests
         run: |
@@ -165,7 +172,9 @@ jobs:
           node-version: ${{ inputs.node-version }}
 
       - name: Install dependencies
-        run: HUSKY=0 npm install
+        run: |
+          npm config set cache /tmp/arc-cache/npm --global
+          HUSKY=0 npm install
 
       - name: Run integration tests
         run: |
@@ -193,7 +202,9 @@ jobs:
           node-version: ${{ inputs.node-version }}
 
       - name: Install dependencies
-        run: HUSKY=0 npm install
+        run: |
+          npm config set cache /tmp/arc-cache/npm --global
+          HUSKY=0 npm install
 
       - name: Run linter
         run: npm run lint
@@ -215,7 +226,9 @@ jobs:
           node-version: ${{ inputs.node-version }}
 
       - name: Install dependencies
-        run: HUSKY=0 npm install
+        run: |
+          npm config set cache /tmp/arc-cache/npm --global
+          HUSKY=0 npm install
 
       - name: Run security audit
         run: npm audit --audit-level=high --omit=dev
@@ -376,7 +389,7 @@ jobs:
         run: pip3 install pip-audit
 
       - name: Run security audit
-        run: pip-audit
+        run: pip-audit ${{ inputs.pip-audit-extra-args }}
 
   # ============================================================================
   # PYTHON: DOCKER BUILD (only on develop/staging/main, after tests pass)
