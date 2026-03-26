@@ -231,7 +231,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Create git tag
-        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/git-tag@main
+        uses: Waion-AI-Development/apps-cicd-workflow-template/.github/actions/git-tag@main
         with:
           image-tag: ${{ inputs.image-tag }}
           push-image: ${{ inputs.push-image }}
@@ -251,7 +251,7 @@ jobs:
           ref: ${{ github.ref }}
 
       - name: Update k8s manifests
-        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/update-k8s@main
+        uses: Waion-AI-Development/apps-cicd-workflow-template/.github/actions/update-k8s@main
         with:
           image-tag: ${{ inputs.image-tag }}
           commit-sha: ${{ github.sha }}

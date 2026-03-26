@@ -6,7 +6,7 @@ Complete guide to setting up CI/CD for your application repository using these r
 
 Before you begin, ensure:
 
-- Your repository is hosted on GitHub under the `Startup-AI-Infrastructure` or `Startup-AI-Development` organization
+- Your repository is hosted on GitHub under the `Waion-AI-Infrastructure` or `Waion-AI-Development` organization
 - You have write access to the repository
 - Your application has a `Dockerfile` in the repository root
 
@@ -101,7 +101,7 @@ on:
 
 jobs:
   ci:
-    uses: Startup-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/universal-ci.yaml@main
+    uses: Waion-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/universal-ci.yaml@main
     with:
       push-image: ${{ github.event_name == 'push' }}
 ```
@@ -171,7 +171,7 @@ on:
 
 jobs:
   bump:
-    uses: Startup-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/auto-version.yaml@main
+    uses: Waion-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/auto-version.yaml@main
     with:
       bump-type: ${{ inputs.bump-type }}
 ```

@@ -35,12 +35,12 @@ ssh -i .ssh/rdocchio root@<TAILSCALE_IP>
 
 Example:
 ```bash
-ssh -i .ssh/rdocchio root@100.94.96.73
+ssh -i .ssh/rdocchio root@100.79.149.120
 ```
 
 ### Run remote commands
 ```bash
-ssh -i .ssh/rdocchio root@100.94.96.73 "<command>"
+ssh -i .ssh/rdocchio root@100.79.149.120 "<command>"
 ```
 
 ## Kubernetes Access
@@ -57,13 +57,13 @@ kubectl --kubeconfig .kube/config get pods -A
 ```
 
 ### Kubeconfig uses MagicDNS
-The kubeconfig connects to `k3s-dev-01-1.taild34517.ts.net:6443` via Tailscale MagicDNS.
+The kubeconfig connects to `k3s-dev-01.taild34517.ts.net:6443` via Tailscale MagicDNS.
 
 ## Git Access
 
 ### Remote repository
 ```
-origin  git@github.com:Startup-AI-Infrastructure/apps-helm-chart-template.git
+origin  git@github.com:Waion-AI-Infrastructure/apps-helm-chart-template.git
 ```
 
 ### SSH key configuration
@@ -104,4 +104,4 @@ helm template test charts/app --set preset=api --set image.repository=myapp
 ### Release process
 1. Update `charts/app/Chart.yaml` version if needed
 2. Create and push a git tag: `git tag v1.0.0 && git push origin v1.0.0`
-3. GitHub Actions will publish to `oci://ghcr.io/startup-ai-infrastructure/charts/app`
+3. GitHub Actions will publish to `oci://ghcr.io/waion-ai-infrastructure/charts/app`

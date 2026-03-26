@@ -65,15 +65,15 @@ Implementation:
 
 ### 3. Docker Image Naming
 
-**Repository**: `ghcr.io/startup-ai-development/{app-name}`
+**Repository**: `ghcr.io/waion-ai-development/{app-name}`
 
-The `{app-name}` is derived from `${{ github.repository }}` which gives `Startup-AI-Development/app-name`.
+The `{app-name}` is derived from `${{ github.repository }}` which gives `Waion-AI-Development/app-name`.
 
 ```yaml
 - name: Set image name
   run: |
     REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
-    echo "IMAGE_NAME=ghcr.io/startup-ai-development/${REPO_NAME}" >> $GITHUB_ENV
+    echo "IMAGE_NAME=ghcr.io/waion-ai-development/${REPO_NAME}" >> $GITHUB_ENV
 ```
 
 ### 4. Workflow Call Interface

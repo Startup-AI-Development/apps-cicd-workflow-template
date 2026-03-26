@@ -5,7 +5,7 @@
 
 ## Overview
 
-Implement a complete set of reusable GitHub Actions workflows that application repositories in `Startup-AI-Development` can call via `uses:` to automate build, test, Docker image creation, semantic versioning based on branch, and automatic k8s/global.yaml image tag updates.
+Implement a complete set of reusable GitHub Actions workflows that application repositories in `Waion-AI-Development` can call via `uses:` to automate build, test, Docker image creation, semantic versioning based on branch, and automatic k8s/global.yaml image tag updates.
 
 ## User Stories
 
@@ -50,8 +50,8 @@ When I merge to `main`, the workflow creates the final release tag, pushes the i
 ## Expected Deliverable
 
 1. All 6 workflow files created in `.github/workflows/` directory, each using `on: workflow_call` trigger
-2. App repos can call `universal-ci.yaml` with `uses: Startup-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/universal-ci.yaml@main` and have their CI/CD fully automated
-3. Docker images are pushed to `ghcr.io/Startup-AI-Development/{app-name}` with correct branch-based versioning (SNAPSHOT/RC/release)
+2. App repos can call `universal-ci.yaml` with `uses: Waion-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/universal-ci.yaml@main` and have their CI/CD fully automated
+3. Docker images are pushed to `ghcr.io/Waion-AI-Development/{app-name}` with correct branch-based versioning (SNAPSHOT/RC/release)
 4. k8s/global.yaml `image.tag` field is automatically updated and committed after successful image push
 5. Project `README.md` documenting the repository purpose and workflow overview
 6. User guide in `docs/user-guide.md` with step-by-step instructions for initializing new app repositories

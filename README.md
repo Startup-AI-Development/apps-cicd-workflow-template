@@ -34,7 +34,7 @@ Centralized GitHub Actions workflows that provide language-aware, branch-based C
 
    jobs:
      ci:
-       uses: Startup-AI-Development/apps-cicd-workflow-template/.github/workflows/universal-ci.yaml@main
+       uses: Waion-AI-Development/apps-cicd-workflow-template/.github/workflows/universal-ci.yaml@main
        with:
          push-image: ${{ github.event_name == 'push' }}
    ```

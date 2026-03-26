@@ -252,7 +252,7 @@ jobs:
           fetch-depth: 0
 
       - name: Docker build and push
-        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/docker-build@main
+        uses: Waion-AI-Development/apps-cicd-workflow-template/.github/actions/docker-build@main
         with:
           image-name: ${{ needs.detect-and-version.outputs.image-name }}
           image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
@@ -261,7 +261,7 @@ jobs:
           ghcr-password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create git tag
-        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/git-tag@main
+        uses: Waion-AI-Development/apps-cicd-workflow-template/.github/actions/git-tag@main
         with:
           image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
           push-image: ${{ inputs.push-image }}
@@ -294,7 +294,7 @@ jobs:
         run: go build -o app .
 
       - name: Docker build and push
-        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/docker-build@main
+        uses: Waion-AI-Development/apps-cicd-workflow-template/.github/actions/docker-build@main
         with:
           image-name: ${{ needs.detect-and-version.outputs.image-name }}
           image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
@@ -303,7 +303,7 @@ jobs:
           ghcr-password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create git tag
-        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/git-tag@main
+        uses: Waion-AI-Development/apps-cicd-workflow-template/.github/actions/git-tag@main
         with:
           image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
           push-image: ${{ inputs.push-image }}
@@ -410,7 +410,7 @@ jobs:
           fetch-depth: 0
 
       - name: Docker build and push
-        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/docker-build@main
+        uses: Waion-AI-Development/apps-cicd-workflow-template/.github/actions/docker-build@main
         with:
           image-name: ${{ needs.detect-and-version.outputs.image-name }}
           image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
@@ -419,7 +419,7 @@ jobs:
           ghcr-password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create git tag
-        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/git-tag@main
+        uses: Waion-AI-Development/apps-cicd-workflow-template/.github/actions/git-tag@main
         with:
           image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
           push-image: ${{ inputs.push-image }}
@@ -438,7 +438,7 @@ jobs:
           fetch-depth: 0
 
       - name: Docker build and push
-        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/docker-build@main
+        uses: Waion-AI-Development/apps-cicd-workflow-template/.github/actions/docker-build@main
         with:
           image-name: ${{ needs.detect-and-version.outputs.image-name }}
           image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
@@ -447,7 +447,7 @@ jobs:
           ghcr-password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create git tag
-        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/git-tag@main
+        uses: Waion-AI-Development/apps-cicd-workflow-template/.github/actions/git-tag@main
         with:
           image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
           push-image: ${{ inputs.push-image }}
@@ -473,7 +473,7 @@ jobs:
           ref: ${{ github.ref }}
 
       - name: Update k8s manifests
-        uses: Startup-AI-Development/apps-cicd-workflow-template/.github/actions/update-k8s@main
+        uses: Waion-AI-Development/apps-cicd-workflow-template/.github/actions/update-k8s@main
         with:
           image-tag: ${{ needs.detect-and-version.outputs.image-tag }}
           commit-sha: ${{ needs.detect-and-version.outputs.commit-sha }}

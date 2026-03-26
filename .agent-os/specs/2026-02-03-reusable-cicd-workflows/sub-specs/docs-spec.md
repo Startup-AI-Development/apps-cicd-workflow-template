@@ -31,7 +31,7 @@ Explain what this repository is, what workflows it contains, and provide a quick
 ```markdown
 # Reusable CI/CD Workflows
 
-Centralized GitHub Actions workflows for `Startup-AI-Development` application repositories.
+Centralized GitHub Actions workflows for `Waion-AI-Development` application repositories.
 
 ## Workflows
 
@@ -59,7 +59,7 @@ on:
 
 jobs:
   ci:
-    uses: Startup-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/universal-ci.yaml@main
+    uses: Waion-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/universal-ci.yaml@main
     secrets: inherit
 \`\`\`
 
@@ -103,7 +103,7 @@ This guide explains how to configure your application repository to use the cent
 
 ## Prerequisites
 
-- Repository in `Startup-AI-Development` organization
+- Repository in `Waion-AI-Development` organization
 - Dockerfile in repo root
 - Basic understanding of Git branching (develop/staging/main)
 
@@ -150,7 +150,7 @@ Create the following files:
 preset: api  # api | worker | job | cronjob | daemon
 
 image:
-  repository: ghcr.io/startup-ai-development/YOUR-APP-NAME
+  repository: ghcr.io/waion-ai-development/YOUR-APP-NAME
   tag: "1.0.0-SNAPSHOT"
   pullPolicy: IfNotPresent
 
@@ -240,13 +240,13 @@ on:
 
 jobs:
   ci:
-    uses: Startup-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/universal-ci.yaml@main
+    uses: Waion-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/universal-ci.yaml@main
     secrets: inherit
 
   bump-version:
     needs: ci
     if: github.event_name == 'push' && github.ref_name == 'staging'
-    uses: Startup-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/auto-version.yaml@main
+    uses: Waion-AI-Infrastructure/apps-cicd-workflow-template/.github/workflows/auto-version.yaml@main
     with:
       bump-type: minor
     secrets: inherit
@@ -259,7 +259,7 @@ jobs:
 3. CI will:
    - Detect your language
    - Build Docker image
-   - Push to `ghcr.io/startup-ai-development/your-app:1.0.0-SNAPSHOT`
+   - Push to `ghcr.io/waion-ai-development/your-app:1.0.0-SNAPSHOT`
    - Update `k8s/global.yaml` with new tag
 4. ArgoCD will automatically deploy to dev environment
 

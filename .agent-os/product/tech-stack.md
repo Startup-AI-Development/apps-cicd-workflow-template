@@ -40,5 +40,5 @@
 
 ## Code Repository
 
-- **URL:** https://github.com/Startup-AI-Infrastructure/apps-cicd-workflow-template
+- **URL:** https://github.com/Waion-AI-Infrastructure/apps-cicd-workflow-template
 - **Hosting:** GitHub
